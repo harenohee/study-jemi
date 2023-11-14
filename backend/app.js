@@ -102,14 +102,14 @@ const data = {
     {
       id: 3,
       name: "네일",
-      privacy: PRIVACY.SECRET,
-      is_delete: true,
+      privacy: PRIVACY.PUBLIC,
+      is_delete: false,
     },
   ],
   boards_posts: [
-    { id: 1, boards_id: 1, posts_id: [2] },
+    { id: 1, boards_id: 1, posts_id: [3] },
     { id: 2, boards_id: 2, posts_id: [1, 2] },
-    { id: 3, boards_id: 3, posts_id: [3] },
+    { id: 3, boards_id: 3, posts_id: [4] },
   ],
   posts: [
     {
@@ -128,9 +128,9 @@ const data = {
     },
     {
       id: 2,
-      title: "일상글",
+      title: "일상글2",
       created_at: Date.now(),
-      is_delete: false,
+      is_delete: true,
       privacy: PRIVACY.PUBLIC,
       creator: "닌자1.5",
       content: {
@@ -171,8 +171,8 @@ const data = {
   ],
 };
 
-// 게시판 추가
-app.get("/", (req, res) => {
+// 게시판 생성페이지 가져오기
+app.get("/boards/new", (req, res) => {
   res.send(addBoardPage);
 });
 // board 조회
@@ -180,16 +180,19 @@ app.get("/boards", (req, res) => {
   const filterBoardCondition = data.boards.filter(
     (item) => item.is_delete == false && item.privacy == PRIVACY.PUBLIC
   );
-  const result = filterBoardCondition.filter((item) => item != null);
+  if (!filterBoardCondition) {
+    return res.status(404).send("조회할 데이터가 없습니다.");
+  }
   //  is_delete가 false인 값만 화면에 표시
-  res.json(result);
+  res.send(filterBoardCondition);
 });
 
 // board 생성
 app.post("/boards", (req, res) => {
   const { board_name, privacy_checked } = req.body;
-
-  // console.log("마지막 id값: ", data.boards[data.boards.length - 1].id);
+  if (!req.body) {
+    return res.status(404).send("게시판을 생성할 수 없습니다.");
+  }
   let currentId = data.boards[data.boards.length - 1].id;
   const newBoard = {
     id: currentId + 1,
@@ -203,32 +206,34 @@ app.post("/boards", (req, res) => {
 
 //board 수정
 app.put("/boards/:id", (req, res) => {
-  console.log("업데이트 id: ", req.params.id);
-  const updateData = data.boards.map((item) => {
-    if (req.params.id == item.id) {
-      return { ...item, name: "이름수정수정", privacy: PRIVACY.SECRET };
-    }
-    return item;
-  });
-  res.send(updateData);
+  const { board_name, privacy_checked } = req.body;
+  const updateData = data.boards.find((item) => item.id == req.params.id);
+  if (board_name.length == 0) {
+    privacy_checked == "on" ? PRIVACY.SECRET : PRIVACY.PUBLIC;
+    updateData.privacy = privacy_checked;
+    return res.send(updateData);
+  }
+  if (privacy_checked.length == 0) {
+    updateData.name = board_name;
+    return res.send(updateData);
+  } else {
+    return res.status(404).send("변경 사항이 없습니다.");
+  }
 });
 
 // board 삭제 (soft delete)
 app.delete("/boards/:id", (req, res) => {
-  const deleteData = data.boards.map((item) => {
-    if (item.id == req.params.id) {
-      return { ...item, is_delete: !item.is_delete };
-    }
-    return item;
-  });
-  console.log("삭제 후 db: ", deleteData);
+  const deleteData = data.boards.find((item) => item.id == req.params.id);
+  deleteData.is_delete = true;
+  console.log("삭제 board db: ", deleteData);
+
   res.send(deleteData);
 });
 
 // 게시글 list 조회
 // 삭제, 공개 여부 체크
 app.get("/boards/:id", (req, res) => {
-  req.params.id == data.boards_posts.board_id;
+  // req.params.id == data.boards_posts.board_id;
   const filterId = data.boards_posts.find(
     (item) => item.boards_id == req.params.id
   );
@@ -243,11 +248,17 @@ app.get("/boards/:id", (req, res) => {
     postList.push(postElement);
   }
   console.log(postList);
-
-  res.send(postList);
+  const filterPostListCondition = postList.filter(
+    (item) => item.is_delete == false && item.privacy == PRIVACY.PUBLIC
+  );
+  if (filterPostListCondition.length == 0)
+    return res.status(404).send("게시글이 없습니다.");
+  else {
+    return res.send(filterPostListCondition);
+  }
 });
 
-// 게시글 작성페이지
+// 게시글 작성페이지 가져오기
 app.get("/posts/new", (req, res) => {
   res.send(addPostPage);
 });
@@ -255,17 +266,15 @@ app.get("/posts/new", (req, res) => {
 // 게시글 작성
 app.post("/posts", (req, res) => {
   const { title, content, creator, privacy_checked, board_name } = req.body;
-  console.log("Post 마지막 title: ", data.posts[data.posts.length - 1].title);
   let currentId = data.posts[data.posts.length - 1].id;
   const newPost = {
     id: currentId + 1,
     title,
     privacy: privacy_checked == "on" ? PRIVACY.SECRET : PRIVACY.PUBLIC,
     is_delete: false,
-    content: {},
+    content,
     creator,
-    created_at: new Date(),
-    modified_at: this.created_at,
+    created_at: Date.now(),
     view_count: 0,
     board_id: board_name == "유머" ? 1 : board_name == "일상" ? 2 : 3,
   };
@@ -277,14 +286,16 @@ app.post("/posts", (req, res) => {
 });
 
 // 게시글 조회
-app.get("/posts/:id", (req, res) => {
-  const filterBoardCondition = data.boards.filter(
+app.get("/posts", (req, res) => {
+  const filterPostCondition = data.posts.filter(
     (item) => item.is_delete == false && item.privacy == PRIVACY.PUBLIC
   );
-  const result = filterBoardCondition.filter((item) => item != null);
+  if (!filterPostCondition) {
+    return res.status(404).send("조회할 게시글이 없습니다.");
+  }
   //  is_delete가 false인 값만 화면에 표시
   // res.json(result);
-  res.send(result);
+  res.send(filterPostCondition);
 });
 // 게시글 수정
 app.put("/posts/:id", (req, res) => {
@@ -308,6 +319,12 @@ app.put("/posts/:id", (req, res) => {
 });
 
 // 게시글 삭제
+app.delete("/posts/:id", (req, res) => {
+  const deleteData = data.posts.find((item) => item.id == req.params.id);
+  deleteData.is_delete = true;
+  console.log("삭제 posts db: ", deleteData);
+  res.send(deleteData);
+});
 
 app.listen(app.get("port"), () => {
   console.log(app.get("port"), "번 포트에서 대기 중!!!!!!!!!!!");
