@@ -58,6 +58,26 @@ const addPostPage = `<!DOCTYPE html>
 </html>
 `;
 
+// 게시글 수정 ui
+const updatePost = `
+<h2>게시글 수정</h2>
+<form action="posts" method="POST">
+<label>
+  <select name="board_name">
+    <option value="유머">유머</option>
+    <option value="일상">일상</option>
+    <option value="네일">네일</option>
+  </select>
+  <input type="text" placeholder="" name="title" />
+  <textarea id="post" name="content" rows="5" cols="33">
+    It was a dark and stormy night...
+  </textarea>
+  <span>비공개🔒</span>
+  <input type="checkbox" name="privacy_checked"/>
+  <input type="submit" value="수정"/>
+  </label>
+</form>`;
+
 // 게시판 and 게시글 공개-비공개 enum
 const PRIVACY = {
   PUBLIC: "public",
@@ -95,8 +115,7 @@ const data = {
     {
       id: 1,
       title: "일상글",
-      created_at: new Date(),
-      modified_at: this.created_at,
+      created_at: Date.now(),
       is_delete: false,
       privacy: PRIVACY.PUBLIC,
       creator: "닌자1",
@@ -110,8 +129,7 @@ const data = {
     {
       id: 2,
       title: "일상글",
-      created_at: new Date(),
-      modified_at: this.created_at,
+      created_at: Date.now(),
       is_delete: false,
       privacy: PRIVACY.PUBLIC,
       creator: "닌자1.5",
@@ -125,8 +143,7 @@ const data = {
     {
       id: 3,
       title: "유머글",
-      created_at: new Date(),
-      modified_at: this.created_at,
+      created_at: Date.now(),
       is_delete: false,
       privacy: PRIVACY.PUBLIC,
       creator: "닌자2",
@@ -140,8 +157,7 @@ const data = {
     {
       id: 4,
       title: "네일글",
-      created_at: new Date(),
-      modified_at: this.created_at,
+      created_at: Date.now(),
       is_delete: false,
       privacy: PRIVACY.PUBLIC,
       creator: "닌자3",
@@ -260,7 +276,36 @@ app.post("/posts", (req, res) => {
   res.status(200).send("포스팅 완료!");
 });
 
+// 게시글 조회
+app.get("/posts/:id", (req, res) => {
+  const filterBoardCondition = data.boards.filter(
+    (item) => item.is_delete == false && item.privacy == PRIVACY.PUBLIC
+  );
+  const result = filterBoardCondition.filter((item) => item != null);
+  //  is_delete가 false인 값만 화면에 표시
+  // res.json(result);
+  res.send(result);
+});
 // 게시글 수정
+app.put("/posts/:id", (req, res) => {
+  console.log("업데이트", req.body);
+  console.log("업데이트 id: ", req.params.id);
+  const updateData = data.posts.map((item) => {
+    if (req.params.id == item.id) {
+      return {
+        ...item,
+        modified_at: Date.now(),
+        creator: "이름수정",
+        privacy: PRIVACY.SECRET,
+        board_name: "네일",
+        board_id: 3,
+        content: "textextex",
+      };
+    }
+    return item;
+  });
+  res.send(updateData);
+});
 
 // 게시글 삭제
 
