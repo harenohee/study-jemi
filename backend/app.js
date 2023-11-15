@@ -2,6 +2,11 @@ const express = require("express");
 // const path = require("path");
 const app = express();
 
+// 게시판 and 게시글 공개-비공개 enum
+const PRIVACY = {
+  PUBLIC: "public",
+  SECRET: "secret",
+};
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.set("port", process.env.PORT || 3000);
@@ -77,12 +82,6 @@ const updatePost = `
   <input type="submit" value="수정"/>
   </label>
 </form>`;
-
-// 게시판 and 게시글 공개-비공개 enum
-const PRIVACY = {
-  PUBLIC: "public",
-  SECRET: "secret",
-};
 
 // board db
 const data = {
@@ -299,22 +298,54 @@ app.get("/posts", (req, res) => {
 });
 // 게시글 수정
 app.put("/posts/:id", (req, res) => {
-  console.log("업데이트", req.body);
+  const { board_name, privacy_checked, content, title } = req.body;
   console.log("업데이트 id: ", req.params.id);
-  const updateData = data.posts.map((item) => {
-    if (req.params.id == item.id) {
-      return {
-        ...item,
-        modified_at: Date.now(),
-        creator: "이름수정",
-        privacy: PRIVACY.SECRET,
-        board_name: "네일",
-        board_id: 3,
-        content: "textextex",
-      };
-    }
-    return item;
-  });
+  let updateData = data.posts.find((item) => item.id == req.params.id);
+
+  updateData = {
+    ...updateData,
+    title,
+    modified_at: Date.now(),
+    privacy: privacy_checked == "on" ? PRIVACY.SECRET : PRIVACY.PUBLIC,
+    board_id: board_name == "유머" ? 1 : board_name == "일상" ? 2 : 3,
+    content,
+  };
+  // boards_posts db 갱신
+  const findIndexBoadrdId = data.boards_posts.find(
+    ({ boards_id }) => boards_id == updateData.board_id
+  );
+  console.log("findIndexBoadrdId", findIndexBoadrdId);
+  console.log(findIndexBoadrdId.id);
+  // 변경한 boards_id에 맞는 posts_id 배열에 추가
+  if (
+    !data.boards_posts[findIndexBoadrdId.id - 1].posts_id.includes(
+      updateData.board_id
+    )
+  ) {
+    data.boards_posts[findIndexBoadrdId.id - 1].posts_id.push(
+      updateData.board_id
+    );
+  }
+  // 기존 배열에선 제거
+  const findIndexPostId = data.boards_posts.find(
+    ({ posts_id }) => posts_id == updateData.id
+  );
+  console.log(
+    "findIndexPostId의 인덱스",
+    findIndexPostId.posts_id.indexOf(updateData.id)
+  );
+  const indexPostId = findIndexPostId.posts_id.indexOf(updateData.id);
+  data.boards_posts[findIndexPostId.id - 1].posts_id.splice(indexPostId, 1);
+  console.log(
+    "제거 후 boards_posts DB",
+    data.boards_posts[findIndexPostId.id - 1]
+  );
+  if (board_name == "유머")
+    data.boards_posts[1].posts_id.push(updateData.board_id);
+  if (board_name == "일상")
+    data.boards_posts[2].posts_id.push(updateData.board_id);
+  if (board_name == "네일")
+    data.boards_posts[3].posts_id.push(updateData.board_id);
   res.send(updateData);
 });
 
