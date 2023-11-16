@@ -129,7 +129,7 @@ const data = {
       id: 2,
       title: "일상글2",
       created_at: Date.now(),
-      is_delete: true,
+      is_delete: false,
       privacy: PRIVACY.PUBLIC,
       creator: "닌자1.5",
       content: {
@@ -189,8 +189,8 @@ app.get("/boards", (req, res) => {
 // board 생성
 app.post("/boards", (req, res) => {
   const { board_name, privacy_checked } = req.body;
-  if (!req.body) {
-    return res.status(404).send("게시판을 생성할 수 없습니다.");
+  if (!board_name) {
+    return res.status(400).send("게시판을 생성할 수 없습니다.");
   }
   let currentId = data.boards[data.boards.length - 1].id;
   const newBoard = {
@@ -206,6 +206,9 @@ app.post("/boards", (req, res) => {
 //board 수정
 app.put("/boards/:id", (req, res) => {
   const { board_name, privacy_checked } = req.body;
+  if (!board_name) {
+    return res.status(500).send("변경 사항이 없습니다.");
+  }
   const updateData = data.boards.find((item) => item.id == req.params.id);
   if (board_name.length == 0) {
     privacy_checked == "on" ? PRIVACY.SECRET : PRIVACY.PUBLIC;
@@ -216,12 +219,20 @@ app.put("/boards/:id", (req, res) => {
     updateData.name = board_name;
     return res.send(updateData);
   } else {
-    return res.status(404).send("변경 사항이 없습니다.");
+    updateData.name = board_name;
+    privacy_checked == "on" ? PRIVACY.SECRET : PRIVACY.PUBLIC;
+    updateData.privacy = privacy_checked;
+    return res.send(updateData);
   }
 });
 
 // board 삭제 (soft delete)
 app.delete("/boards/:id", (req, res) => {
+  if (!req.params) {
+    return res
+      .status(404)
+      .send("BAD_REQUEST\n잘못된 요청입니다. 삭제할 보드를 확인해주세요.");
+  }
   const deleteData = data.boards.find((item) => item.id == req.params.id);
   deleteData.is_delete = true;
   console.log("삭제 board db: ", deleteData);
@@ -232,12 +243,12 @@ app.delete("/boards/:id", (req, res) => {
 // 게시글 list 조회
 // 삭제, 공개 여부 체크
 app.get("/boards/:id", (req, res) => {
-  // req.params.id == data.boards_posts.board_id;
+  if (!Object.keys(data.boards).includes(req.params.id)) {
+    return res.status(400).send("BAD_REQUEST\n잘못된 게시판 요청입니다.");
+  }
   const filterId = data.boards_posts.find(
     (item) => item.boards_id == req.params.id
   );
-  console.log(filterId);
-  console.log(filterId.posts_id);
   // [1.2] => post 배열에서 추출
   const postList = [];
   // boards_posts 에 있는 post_id값만 불러오기
@@ -299,37 +310,43 @@ app.get("/posts", (req, res) => {
 // 게시글 수정
 app.put("/posts/:id", (req, res) => {
   const { board_name, privacy_checked, content, title } = req.body;
+  if (!title || !content) {
+    return res.status(404).send("제목이나 내용이 빈 칸인지 확인해주세요.");
+  }
   console.log("업데이트 id: ", req.params.id);
-  let updateData = data.posts.find((item) => item.id == req.params.id);
-
+  let updateData = data.posts.find((item) => item.id == req.params.id); //배열 하나
   updateData = {
-    ...updateData,
-    title,
+    ...updateData, // 기존 값 ex) id
+    title, // 새로운 값
     modified_at: Date.now(),
     privacy: privacy_checked == "on" ? PRIVACY.SECRET : PRIVACY.PUBLIC,
     board_id: board_name == "유머" ? 1 : board_name == "일상" ? 2 : 3,
     content,
   };
+  console.log("updateData", updateData);
   // boards_posts db 갱신
-  const findIndexBoadrdId = data.boards_posts.find(
+  const findIndexBoardId = data.boards_posts.find(
     ({ boards_id }) => boards_id == updateData.board_id
   );
-  console.log("findIndexBoadrdId", findIndexBoadrdId);
-  console.log(findIndexBoadrdId.id);
+  console.log("findIndexBoardId", findIndexBoardId);
+  console.log(findIndexBoardId.id);
   // 변경한 boards_id에 맞는 posts_id 배열에 추가
   if (
-    !data.boards_posts[findIndexBoadrdId.id - 1].posts_id.includes(
+    !data.boards_posts[findIndexBoardId.id - 1].posts_id.includes(
       updateData.board_id
     )
-  ) {
-    data.boards_posts[findIndexBoadrdId.id - 1].posts_id.push(
+  )
+    data.boards_posts[findIndexBoardId.id - 1].posts_id.push(
       updateData.board_id
     );
-  }
+
+  console.log(data.boards_posts);
   // 기존 배열에선 제거
+  console.log("수정할 게시물의 id ", updateData.id);
   const findIndexPostId = data.boards_posts.find(
     ({ posts_id }) => posts_id == updateData.id
   );
+  console.log("findIndexPostId", findIndexPostId);
   console.log(
     "findIndexPostId의 인덱스",
     findIndexPostId.posts_id.indexOf(updateData.id)
@@ -351,6 +368,11 @@ app.put("/posts/:id", (req, res) => {
 
 // 게시글 삭제
 app.delete("/posts/:id", (req, res) => {
+  if (!req.params) {
+    return res
+      .status(404)
+      .send("BAD_REQUEST\n잘못된 요청입니다. 삭제할 게시글을 확인해주세요.");
+  }
   const deleteData = data.posts.find((item) => item.id == req.params.id);
   deleteData.is_delete = true;
   console.log("삭제 posts db: ", deleteData);
